@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MasakGram Reel Analysis Dashboard</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e67e22;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --text: #333333;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { margin: 0; font-size: 24px; }
+        
+        /* --- TABS --- */
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 10px;
+        }
+        .nav-btn {
+            background-color: #e0e0e0;
+            color: #333;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .nav-btn.active {
+            background-color: var(--primary);
+            color: white;
+            border-bottom: 4px solid var(--accent);
+        }
+
+        /* Layout */
+        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        @media (max-width: 992px) { .grid { grid-template-columns: 1fr; } }
+
+        .card { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card h2 { margin-top: 0; font-size: 18px; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; }
+        select, input, textarea, button { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        textarea { font-family: inherit; resize: vertical; }
+        .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 20px; }
+        @media (max-width: 700px) { .score-grid { grid-template-columns: 1fr; } }
+        
+        button { background-color: var(--accent); color: white; border: none; font-weight: bold; cursor: pointer; }
+        button:hover { background-color: #d35400; }
+        .btn-secondary { background-color: #34495e; margin-top: 10px; }
+        .btn-danger { background-color: #c0392b; margin-top: 10px; }
+
+        pre { background-color: #27ae60; color: white; padding: 15px; border-radius: 4px; overflow-x: auto; font-family: 'Courier New', Courier, monospace; max-height: 400px; white-space: pre-wrap; word-wrap: break-word; }
+        .status-msg { margin-top: 10px; font-weight: bold; font-size: 14px; }
+
+        /* Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        table th, table td { padding: 8px; border: 1px solid #ccc; text-align: left; }
+        table th { background: #f2f2f2; position: sticky; top: 0; }
+
+        /* Inspect Modal */
+        #inspectModal {
+            display: none; position: fixed; top: 2%; left: 1%; width: 98%; height: 95%; 
+            background: white; box-shadow: 0 0 30px rgba(0,0,0,0.5); z-index: 1000; 
+            padding: 20px; border-radius: 8px; overflow: hidden; flex-direction: column;
+        }
+        .modal-body { overflow: auto; flex-grow: 1; margin-top: 15px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
+
+        /* Comparison Styling */
+        .data-cell { display: flex; flex-direction: column; gap: 2px; line-height: 1.2; min-width: 60px; padding: 2px 0; }
+        .val-gt { color: #27ae60; font-weight: bold; font-size: 11px; display: block; border-bottom: 1px dashed #eee; padding-bottom: 2px; }
+        .val-ai { color: #e67e22; font-weight: bold; font-size: 11px; display: block; padding-top: 2px; }
+        .val-match { color: #2c3e50; font-weight: bold; }
+        
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; color: white; text-transform: uppercase; font-weight: bold; display: inline-block; }
+        .bg-hallucination { background: #e74c3c; }
+        .bg-missing { background: #f39c12; }
+        .bg-match { background: #2ecc71; }
+        
+        .status-fail { color: #c0392b; font-weight: bold; }
+        .status-success { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>MasakGram Intelligent Attendance & Nutritional Analysis Dashboard</h1>
+        <small>Universiti Teknikal Malaysia Melaka (UTeM) Project Execution Panel</small>
+    </header>
+
+    <div class="nav-tabs">
+        <button id="tab-pipeline" class="nav-btn active" onclick="switchTab('pipeline')">🚀 Live Execution</button>
+        <button id="tab-history" class="nav-btn" onclick="switchTab('history')">📊 Historical Audit & Inspection</button>
+    </div>
+
+    <!-- VIEW 1: PIPELINE & EXPORT -->
+    <div id="view-pipeline">
+        <div class="grid">
+            <div class="sidebar">
+                <div class="card">
+                    <h2>Run Execution Pipeline</h2>
+                    <div class="form-group">
+                        <label for="modelId">LLM Inference Model</label>
+                        <select id="modelId">
+                            <option value="1">Llama 3.2 3B</option>
+                            <option value="2">Phi-4-mini (3.8B)</option>
+                            <option value="3">Qwen 2.5 3B</option>
+                            <option value="4">Gemma-SEA-LION v4 4B</option>
+                            <option value="5">MedGemma 4B</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="techniqueId">Prompt Engineering Technique</label>
+                        <select id="techniqueId">
+                            <option value="1">Zero-Shot Baseline</option>
+                            <option value="2">Few-Shot Structured Exemplars</option>
+                            <option value="3">Chain-of-Thought (CoT)</option>
+                            <option value="4">Structured-Output</option>
+                        </select>
+                    </div>
+                    <button onclick="startProcess()">Execute Analysis Pipeline</button>
+                    <button onclick="stopProcess()" class="btn-danger">Stop Execution</button>
+                    <div id="pipelineStatus" class="status-msg"></div>
+                </div>
+
+                <div class="card">
+                    <h2>Export Metrics Evaluation Layers</h2>
+                    <div class="form-group">
+                        <label for="exportLayer">Select Target Analytics Layer</label>
+                        <select id="exportLayer">
+                            <option value="LAYER 1A|layer1a_exact_match.csv">Layer 1A: Exact Match</option>
+                            <option value="LAYER 1B|layer1b_text_similarity.csv">Layer 1B: Text Similarity</option>
+                            <option value="LAYER 2A|layer2a_numeric_quantity.csv">Layer 2A: Numeric Quantity</option>
+                            <option value="LAYER 2B|layer2b_numeric_nutrition.csv">Layer 2B: Numeric Nutrition</option>
+                            <option value="LAYER 2C|layer2c_nutrition_totals.csv">Layer 2C: Nutrition Totals</option>
+                            <option value="LAYER 3A|layer3a_json_validity.csv">Layer 3A: JSON Validity</option>
+                            <option value="LAYER 3B|layer3b_hallucination.csv">Layer 3B: Hallucination</option>
+                            <option value="LAYER 3C|layer3c_ingredient_detection.csv">Layer 3C: Ingredient Detection</option>
+                            <option value="LAYER 4|layer4_human_evaluation.csv">Layer 4: Human Evaluation</option>
+                            <option value="LAYER 5|layer5_condition_scores.csv">Layer 5: Condition Scores</option>
+                        </select>
+                    </div>
+                    <button class="btn-secondary" onclick="triggerExport()">Generate & Download CSV Report</button>
+                    <div id="exportStatus" class="status-msg"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Real-time Pipeline Output Log Monitor</h2>
+                <pre id="outputLog">System Idle. Waiting for execution pipeline trigger...</pre>
+                
+                <div id="resultsContainer" style="margin-top: 20px; display: none;">
+                    <h3>Analysis Results</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Transcript ID</th>
+                                <th>Transcript Name</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                    <h3 style="margin-top: 20px;">Raw JSON Output</h3>
+                    <pre id="rawJsonDisplay" style="background: #333; color: #0f0; font-size: 12px;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW 2: HISTORY & INSPECTION -->
+    <div id="view-history" style="display: none;">
+        <div class="card">
+            <h2>Historical Experiment & Calorie Audit</h2>
+            <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 150px;">
+                    <label>Select Reel</label>
+                    <select id="histReelId"><option value="1">Reel 1</option></select>
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 150px;">
+                    <label>Filter Model</label>
+                    <select id="histModelId"><option value="">All Models</option></select>
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 150px;">
+                    <label>Filter Technique</label>
+                    <select id="histTechId"><option value="">All Techniques</option></select>
+                </div>
+                <button onclick="loadHistory()" style="width: auto; padding: 10px 20px; background: #3498db; margin-bottom: 15px;">Search</button>
+                <button onclick="closeHistory()" style="width: auto; padding: 10px 20px; background: #95a5a6; margin-bottom: 15px;">Clear</button>
+            </div>
+
+            <table id="historyTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Reel #</th>
+                        <th>Exp ID</th>
+                        <th>Model</th>
+                        <th>Technique</th>
+                        <th>AI Cals</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- INSPECT MODAL -->
+<div id="modalOverlay" class="modal-overlay"></div>
+<div id="inspectModal">
+    <div style="display:flex; justify-content:space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+        <div>
+            <h2 style="margin:0; color: #2c3e50;">Deep-Dive Experiment Inspection</h2>
+            <div id="inspectBanner" style="margin-top: 6px; padding: 6px 12px; background: #eaeded; border-left: 4px solid #3498db; font-size: 14px; font-weight: bold; color: #34495e;"></div>
+            <div id="cacheStatusBadge" style="display:none; margin-top: 5px; display:inline-block;"></div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button id="reVerifyBtn" style="display:none; width:auto; padding:8px 16px; background:#f39c12; color:white; border:none; font-weight:bold; cursor:pointer; border-radius:4px;" title="Force re-run the LLM Semantic Jury and update the database cache">🔄 Re-verify</button>
+            <button onclick="closeInspect()" style="width:auto; padding:8px 16px; background:#e74c3c; color:white; border:none; font-weight:bold; cursor:pointer; border-radius:4px;">✕ Close</button>
+        </div>
+    </div>
+    
+    <div class="modal-body">
+        <div id="dishNameBanner" style="display:none; margin-bottom: 16px; padding: 10px 16px; background: #eaf4fb; border-left: 4px solid #2980b9; border-radius: 4px;">
+            <span style="font-size: 13px; color: #555; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">🍽️ Dish Name (Ground Truth)</span>
+            <div id="dishNameText" style="font-size: 18px; font-weight: bold; color: #2c3e50; margin-top: 4px;"></div>
+        </div>
+        <h3 style="color: #2c3e50; margin-bottom: 8px;">1. Ingredient Detection Status</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+            <thead>
+                <tr style="background: #34495e; color:black;">
+					<th style="padding: 8px; border: 1px solid #ccc;">GT (Original)</th>
+					<th style="padding: 8px; border: 1px solid #ccc;">GT (English)</th>
+					<th style="padding: 8px; border: 1px solid #ccc;">AI (Original)</th>
+					<th style="padding: 8px; border: 1px solid #ccc;">AI (English)</th>
+					<th style="padding: 8px; border: 1px solid #ccc;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="ingredientDetectBody"></tbody>
+        </table>
+
+        <h3 style="color: #2c3e50; margin-bottom: 8px;">2. AI Extracted Nutritional Values</h3>
+        <small style="display:block; margin-bottom: 8px; color: #555;">Showing AI-extracted values only. Ground Truth nutrition is not displayed.</small>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #34495e; color: black;">
+                    <th style="padding: 8px; border: 1px solid #ccc;">Ingredient Pair (English)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Weight (g)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Calories (kcal)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Total Fat (g)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Sat. Fat (g)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Cholesterol (mg)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Sodium (mg)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Carbs (g)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Fiber (g)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Sugar (g)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Protein (g)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Vit. D (mcg)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Calcium (mg)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Iron (mg)</th>
+                    <th style="padding: 8px; border: 1px solid #ccc;">Potassium (mg)</th>
+                </tr>
+            </thead>
+            <tbody id="nutritionCompareBody"></tbody>
+        </table>
+
+        <h3 style="color: #2c3e50; margin-bottom: 8px; margin-top: 25px;">3. Human Evaluation</h3>
+        <small style="display:block; margin-bottom: 12px; color: #555;">Score this experiment's output on a 1 (poor) – 5 (excellent) scale. Submitting again updates your existing evaluation for this experiment.</small>
+
+        <div id="evalStatus" class="status-msg" style="margin-bottom: 10px;"></div>
+
+        <div class="score-grid" style="margin-bottom: 15px;">
+            <div class="form-group">
+                <label for="evalMatric">Evaluator Matric No.</label>
+                <input type="text" id="evalMatric" placeholder="e.g. B032410517">
+            </div>
+            <div class="form-group">
+                <label for="evalName">Evaluator Name</label>
+                <input type="text" id="evalName" placeholder="Full name">
+            </div>
+        </div>
+
+        <div class="score-grid">
+            <div class="form-group">
+                <label for="fluencyScore">Fluency (1–5)</label>
+                <select id="fluencyScore"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="coherenceScore">Coherence (1–5)</label>
+                <select id="coherenceScore"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="ingredientCompleteness">Ingredient Completeness (1–5)</label>
+                <select id="ingredientCompleteness"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="ingredientAccuracy">Ingredient Accuracy (1–5)</label>
+                <select id="ingredientAccuracy"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="quantityAccuracy">Quantity Accuracy (1–5)</label>
+                <select id="quantityAccuracy"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="hallucinationSeverity">Hallucination Severity (1=Severe, 5=None)</label>
+                <select id="hallucinationSeverity"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="faithfulnessScore">Faithfulness to Transcript (1–5)</label>
+                <select id="faithfulnessScore"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="jsonStructureScore">JSON Structure Validity (1–5)</label>
+                <select id="jsonStructureScore"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="languageTagAccuracy">Language Tag Accuracy (1–5)</label>
+                <select id="languageTagAccuracy"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+            <div class="form-group">
+                <label for="overallScore">Overall Score (1–5)</label>
+                <select id="overallScore"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="evalRemarks">Remarks / Qualitative Feedback</label>
+            <textarea id="evalRemarks" rows="3" placeholder="Optional notes about this experiment's output..."></textarea>
+        </div>
+
+        <button onclick="submitEvaluation()" style="width: auto; padding: 10px 24px;">💾 Save Evaluation</button>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "http://localhost:8080/experiment";
+    let batchStartTime = null;
+    let pollInterval = null;
+    let currentInspectExpId = null;
+    const SCORE_FIELD_IDS = ["fluencyScore", "coherenceScore", "ingredientCompleteness", "ingredientAccuracy",
+        "quantityAccuracy", "hallucinationSeverity", "faithfulnessScore", "jsonStructureScore",
+        "languageTagAccuracy", "overallScore"];
+
+    // --- TAB LOGIC ---
+    function switchTab(tabName) {
+        document.getElementById('view-pipeline').style.display = 'none';
+        document.getElementById('view-history').style.display = 'none';
+        document.getElementById('tab-pipeline').classList.remove('active');
+        document.getElementById('tab-history').classList.remove('active');
+        
+        document.getElementById('view-' + tabName).style.display = 'block';
+        document.getElementById('tab-' + tabName).classList.add('active');
+    }
+
+    // --- INITIALIZATION ---
+    window.addEventListener('load', async () => {
+        try {
+            // Build the reel dropdown dynamically from whatever reels actually
+            // exist in the database, instead of assuming a fixed range.
+            const reelSelect = document.getElementById("histReelId");
+            const reelIds = await (await fetch(`${API_BASE}/reels`)).json();
+            reelSelect.innerHTML = "";
+            reelIds.forEach(id => reelSelect.innerHTML += `<option value="${id}">Reel ${id}</option>`);
+        } catch (e) { console.log("Reel list fetch failed or backend offline."); }
+
+        try {
+            const models = await (await fetch(`${API_BASE}/models`)).json();
+            models.forEach(m => document.getElementById("histModelId").innerHTML += `<option value="${m.modelId}">${m.modelName}</option>`);
+            
+            const techs = await (await fetch(`${API_BASE}/techniques`)).json();
+            techs.forEach(t => document.getElementById("histTechId").innerHTML += `<option value="${t.techniqueId}">${t.techniqueName}</option>`);
+        } catch (e) { console.log("Dropdown fetch failed or backend offline."); }
+    });
+
+    // --- PIPELINE LOGIC ---
+    async function startProcess() {
+        const statusDiv = document.getElementById("pipelineStatus");
+        document.getElementById("resultsBody").innerHTML = ""; 
+        document.getElementById("resultsContainer").style.display = "block";
+        batchStartTime = new Date(Date.now() - 10000).toISOString(); 
+
+        const payload = {
+            modelId: parseInt(document.getElementById("modelId").value),
+            techniqueId: parseInt(document.getElementById("techniqueId").value)
+        };
+
+        statusDiv.style.color = "orange";
+        statusDiv.innerText = "Triggering Pipeline...";
+
+        try {
+            const response = await fetch(`${API_BASE}/create-and-run`, {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+            });
+            if (response.ok) {
+                statusDiv.style.color = "blue";
+                statusDiv.innerText = "Processing all available reels...";
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(refreshCurrentBatch, 2000);
+            }
+        } catch (err) { statusDiv.innerText = "Error starting process."; }
+    }
+
+    async function stopProcess() {
+        try {
+            await fetch(`${API_BASE}/stop`, { method: "POST" });
+            document.getElementById("pipelineStatus").innerText = "Stop requested...";
+        } catch (err) { console.error(err); }
+    }
+
+    async function refreshCurrentBatch() {
+        try {
+            const response = await fetch(`${API_BASE}/experiments`);
+            const allExperiments = await response.json();
+            const currentBatch = allExperiments.filter(exp => new Date(exp.executedAt) >= new Date(batchStartTime));
+
+            const tbody = document.getElementById("resultsBody");
+            tbody.innerHTML = ""; 
+            currentBatch.sort((a, b) => a.experimentId - b.experimentId).forEach(exp => {
+                const row = document.createElement("tr");
+                let color = exp.status === "success" ? "green" : (exp.status === "failed" ? "red" : "orange");
+                const displayId = (exp.transcript && exp.transcript.reelId) ? exp.transcript.reelId : "Exp: " + exp.experimentId;
+                row.innerHTML = `<td>${displayId}</td><td>${exp.transcript ? exp.transcript.fileName : 'Loading...'}</td><td style="color: ${color}; font-weight: bold;">${exp.status.toUpperCase()}</td>`;
+                tbody.appendChild(row);
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    async function triggerExport() {
+        const selectValue = document.getElementById("exportLayer").value.split("|");
+        const payload = { queryLabel: selectValue[0], fileName: selectValue[1] };
+        const response = await fetch(`${API_BASE}/export`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = selectValue[1]; a.click();
+        }
+    }
+
+    // --- STACKED COMPARISON HELPER ---
+    function compareCell(gtVal, aiVal, isNumeric = false) {
+        let gt = (gtVal !== null && gtVal !== undefined && gtVal !== "") ? gtVal : "-";
+        let ai = (aiVal !== null && aiVal !== undefined && aiVal !== "") ? aiVal : "-";
+        
+        if (isNumeric) {
+            if (gt !== "-" && !isNaN(gt)) gt = parseFloat(gt).toFixed(1);
+            if (ai !== "-" && !isNaN(ai)) ai = parseFloat(ai).toFixed(1);
+        }
+
+        if (gt === ai && gt !== "-") {
+            return `<div class="data-cell"><span class="val-match">${gt}</span></div>`;
+        } else {
+            return `
+                <div class="data-cell">
+                    <span class="val-gt" title="Ground Truth (Data Asal)">GT: ${gt}</span>
+                    <span class="val-ai" title="AI Extracted">AI: ${ai}</span>
+                </div>`;
+        }
+    }
+
+    // --- IMPROVED HISTORY LOGIC ---
+    async function loadHistory() {
+        const reelId = document.getElementById("histReelId").value;
+        const modelFilter = document.getElementById("histModelId").value;
+        const techFilter = document.getElementById("histTechId").value;
+        
+        try {
+            const endpoint = reelId ? `${API_BASE}/history/${reelId}` : `${API_BASE}/history/1`;
+            const response = await fetch(endpoint);
+            let data = await response.json();
+            
+            if(modelFilter) data = data.filter(d => d.modelId == modelFilter);
+            if(techFilter) data = data.filter(d => d.techniqueId == techFilter);
+
+            const tbody = document.getElementById("historyBody");
+            document.getElementById("historyTable").style.display = "table";
+            tbody.innerHTML = "";
+
+            data.sort((a, b) => (a.reelId || 0) - (b.reelId || 0)).forEach(h => {
+                const isFailedRun = (h.status && h.status.toLowerCase() === 'failed') ||
+                                    (h.aiData === null || h.aiData === "" || h.aiData === "{}") ||
+                                    h.hasMissingIngredients === true;
+
+                const statusBadge = isFailedRun ? 
+                    `<span class="status-fail">FAIL</span>` : 
+                    `<span class="status-success">SUCCESS</span>`;
+
+                const displayReel = h.reelId ? `Reel ${h.reelId}` : `Exp #${h.expId} (no reel)`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight:bold; color:var(--primary);">${displayReel}</td>
+                        <td>#${h.expId}</td>
+                        <td>${h.model}</td>
+                        <td>${h.technique}</td>
+                        <td>${h.aiCals ? h.aiCals.toFixed(1) : '0.0'}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <button onclick="viewInspect(${h.expId}, ${h.reelId ? h.reelId : 'null'}, '${h.model}', '${h.technique}', false)" style="padding:4px 10px; font-size:12px;">🔍 Inspect</button>
+                        </td>
+                    </tr>`;
+            });
+        } catch (err) {
+            console.error("Failed to load history:", err);
+            alert("Could not load history. Please ensure backend is running.");
+        }
+    }
+
+    // --- INSPECT MODAL (Cache-first: checks DB before running LLM Semantic Jury) ---
+    async function viewInspect(expId, reelId, model, technique, forceRefresh = false) {
+        currentInspectExpId = expId;
+        loadEvaluation(expId);
+        try {
+            // Fetch the real reel ID from the experiment record if not already resolved
+            let displayReelId = reelId;
+            if (!reelId) {
+                try {
+                    const expRes = await fetch(`${API_BASE}/${expId}/results`);
+                    const expData = await expRes.json();
+                    displayReelId = expData?.experiment?.transcript?.reel?.reelId || expId;
+                } catch (e) { displayReelId = expId; }
+            }
+
+            // Show modal immediately with a loading state so user gets feedback
+            document.getElementById("inspectModal").style.display = "flex";
+            document.getElementById("modalOverlay").style.display = "block";
+            const banner = document.getElementById("inspectBanner");
+            banner.innerHTML = `📌 Inspecting Target — Reel: #${displayReelId} | Model: ${model} | Prompt Technique: ${technique}`;
+
+            const cacheBadge = document.getElementById("cacheStatusBadge");
+            cacheBadge.style.display = "inline-block";
+            cacheBadge.innerHTML = `<span style="font-size:12px; padding:3px 9px; border-radius:12px; background:#f0f3f4; color:#7f8c8d; font-weight:600;">⏳ Loading audit data…</span>`;
+
+            document.getElementById("ingredientDetectBody").innerHTML =
+                `<tr><td colspan="5" style="text-align:center; padding:20px; color:#95a5a6;">⏳ Running audit verification, please wait…</td></tr>`;
+            document.getElementById("nutritionCompareBody").innerHTML = "";
+
+            const t0 = Date.now();
+            // Pass ?refresh=true only when the user explicitly clicked "Re-verify"
+            const auditUrl = `${API_BASE}/audit-details/${expId}` + (forceRefresh ? `?refresh=true` : ``);
+            const response = await fetch(auditUrl);
+            const rows = await response.json();
+
+            const elapsed = Date.now() - t0;
+
+            // Show cache hit/miss badge.
+            // With the DB cache: a cache hit is near-instant; a miss triggers LLM jury calls (seconds).
+            const isCacheHit = !forceRefresh && elapsed < 800;
+            const cacheBadgeEl = document.getElementById("cacheStatusBadge");
+            cacheBadgeEl.style.display = "inline-block";
+            if (forceRefresh) {
+                cacheBadgeEl.innerHTML = `<span title="Semantic Jury was re-run and new results saved to database." style="font-size:12px; padding:3px 10px; border-radius:12px; background:#fdebd0; color:#a04000; font-weight:700; border:1px solid #f0b27a; cursor:help;">🔄 Re-verified &amp; Saved (${elapsed}ms)</span>`;
+            } else if (isCacheHit) {
+                cacheBadgeEl.innerHTML = `<span title="Audit results loaded from database — no LLM calls made." style="font-size:12px; padding:3px 10px; border-radius:12px; background:#eafaf1; color:#1e8449; font-weight:700; border:1px solid #a9dfbf; cursor:help;">⚡ From Database Cache (${elapsed}ms)</span>`;
+            } else {
+                cacheBadgeEl.innerHTML = `<span title="First-time audit: Semantic Jury ran and results are now saved to database." style="font-size:12px; padding:3px 10px; border-radius:12px; background:#fef9e7; color:#b7950b; font-weight:700; border:1px solid #f9e79f; cursor:help;">🔍 Computed &amp; Cached (${elapsed}ms)</span>`;
+            }
+
+            // Store context on the Re-verify button for later use
+            const reVerifyBtn = document.getElementById("reVerifyBtn");
+            if (reVerifyBtn) {
+                reVerifyBtn.onclick = () => viewInspect(expId, reelId, model, technique, true);
+                reVerifyBtn.style.display = "inline-block";
+            }
+
+            // Fetch dish name from experiment results (recipe_name from NutritionResult)
+            const dishBanner = document.getElementById("dishNameBanner");
+            const dishNameText = document.getElementById("dishNameText");
+            dishBanner.style.display = "none";
+            try {
+                const expRes = await fetch(`${API_BASE}/${expId}/results`);
+                const expData = await expRes.json();
+                const recipeName = expData?.experiment?.nutritionResult?.recipeName
+                    || expData?.recipeName
+                    || null;
+                if (recipeName && recipeName.trim() !== "" && recipeName.toLowerCase() !== "null") {
+                    dishNameText.textContent = recipeName;
+                    dishBanner.style.display = "block";
+                }
+            } catch (e) { /* dish name is optional, fail silently */ }
+
+            const table1Body = document.getElementById("ingredientDetectBody");
+            table1Body.innerHTML = "";
+            const table2Body = document.getElementById("nutritionCompareBody");
+            table2Body.innerHTML = "";
+
+            rows.forEach(r => {
+                let statusBadge = `<span class="badge bg-match">MATCH</span>`;
+                if (r.type === "HALLUCINATION" || (!r.gtName && r.aiName)) {
+                    statusBadge = `<span class="badge bg-hallucination">HALLUCINATION</span>`;
+                } else if (r.type === "MISSING" || (r.gtName && (!r.aiName || r.aiName === ""))) {
+                    statusBadge = `<span class="badge bg-missing">MISSING AI</span>`;
+                }
+
+                // Extract original, converted English (or fallback to original if backend DTO lacks it), and AI name
+				const gtOriginal = r.gtNameOri || '-';
+				const gtEnglish = r.gtName || '-';
+				const aiOriginal = r.aiNameOri || '-';
+				const aiEnglish = r.aiName || '-';
+
+                table1Body.innerHTML += `
+                    <tr>
+						<td style="font-weight:500; color: #555;">${gtOriginal}</td>
+						<td style="font-weight:bold; color: #27ae60;">${gtEnglish}</td>
+						<td style="font-weight:500; color: #555;">${aiOriginal}</td>
+						<td style="font-weight:bold; color: #e67e22;">${aiEnglish}</td>
+						<td>${statusBadge}</td>
+                    </tr>`;
+
+                // Use the English converted pair name for Table 2
+                const pairName = (gtEnglish === aiEnglish) ? gtEnglish : `${gtEnglish} / ${aiEnglish}`;
+                
+                const fmtAi = (v) => (v !== null && v !== undefined && v !== '') ? parseFloat(v).toFixed(1) : '-';
+                table2Body.innerHTML += `
+                    <tr>
+                        <td style="font-weight:bold;">${pairName}</td>
+                        <td>${fmtAi(r.aiWeight)}</td>
+                        <td>${fmtAi(r.aiCals)}</td>
+                        <td>${fmtAi(r.aiFat)}</td>
+                        <td>${fmtAi(r.aiSatFat)}</td>
+                        <td>${fmtAi(r.aiChol)}</td>
+                        <td>${fmtAi(r.aiSod)}</td>
+                        <td>${fmtAi(r.aiCarb)}</td>
+                        <td>${fmtAi(r.aiFiber)}</td>
+                        <td>${fmtAi(r.aiSugar)}</td>
+                        <td>${fmtAi(r.aiProt)}</td>
+                        <td>${fmtAi(r.aiVitD)}</td>
+                        <td>${fmtAi(r.aiCalc)}</td>
+                        <td>${fmtAi(r.aiIron)}</td>
+                        <td>${fmtAi(r.aiPotas)}</td>
+                    </tr>`;
+            });
+        } catch (err) {
+            console.error("Inspection load failed:", err);
+            alert("Failed to load inspection details. Check console for details.");
+        }
+    }
+
+    function closeInspect() {
+        document.getElementById("inspectModal").style.display = "none";
+        document.getElementById("modalOverlay").style.display = "none";
+    }
+
+    function closeHistory() {
+        document.getElementById("historyTable").style.display = "none";
+    }
+
+    // --- HUMAN EVALUATION FORM ---
+
+    // Loads any existing evaluation for this experiment so the reviewer edits
+    // rather than accidentally creating a duplicate. Leaves the form blank
+    // (ready for a first-time entry) if none exists yet.
+    async function loadEvaluation(expId) {
+        const statusEl = document.getElementById("evalStatus");
+        statusEl.innerHTML = "";
+        document.getElementById("evalMatric").value = "";
+        document.getElementById("evalName").value = "";
+        document.getElementById("evalRemarks").value = "";
+        SCORE_FIELD_IDS.forEach(id => document.getElementById(id).value = "");
+
+        try {
+            const res = await fetch(`${API_BASE}/${expId}/evaluation`);
+            if (res.status === 204) return; // no evaluation yet — blank form is correct
+            const data = await res.json();
+            if (!data) return;
+
+            document.getElementById("evalMatric").value = data.evaluatorMatric || "";
+            document.getElementById("evalName").value = data.evaluatorName || "";
+            document.getElementById("evalRemarks").value = data.remarks || "";
+            SCORE_FIELD_IDS.forEach(id => {
+                const v = data[id];
+                document.getElementById(id).value = (v === null || v === undefined) ? "" : v;
+            });
+            statusEl.innerHTML = `<span style="color:#2980b9;">✎ Existing evaluation loaded — saving will update it.</span>`;
+        } catch (e) {
+            console.log("No existing evaluation found or fetch failed:", e);
+        }
+    }
+
+    async function submitEvaluation() {
+        const statusEl = document.getElementById("evalStatus");
+
+        if (!currentInspectExpId) {
+            statusEl.innerHTML = `<span style="color:#c0392b;">No experiment selected.</span>`;
+            return;
+        }
+
+        const evaluatorMatric = document.getElementById("evalMatric").value.trim();
+        const evaluatorName = document.getElementById("evalName").value.trim();
+        if (!evaluatorMatric || !evaluatorName) {
+            statusEl.innerHTML = `<span style="color:#c0392b;">Please enter both evaluator matric number and name.</span>`;
+            return;
+        }
+
+        const payload = { evaluatorMatric, evaluatorName, remarks: document.getElementById("evalRemarks").value.trim() };
+        SCORE_FIELD_IDS.forEach(id => {
+            const v = document.getElementById(id).value;
+            payload[id] = v === "" ? null : parseInt(v, 10);
+        });
+
+        statusEl.innerHTML = `<span style="color:#7f8c8d;">Saving…</span>`;
+        try {
+            const res = await fetch(`${API_BASE}/${currentInspectExpId}/evaluation`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                statusEl.innerHTML = `<span style="color:#27ae60;">✔ Evaluation saved.</span>`;
+            } else {
+                const errText = await res.text();
+                statusEl.innerHTML = `<span style="color:#c0392b;">Failed to save: ${errText}</span>`;
+            }
+        } catch (e) {
+            console.error("Failed to save evaluation:", e);
+            statusEl.innerHTML = `<span style="color:#c0392b;">Error saving evaluation. Check console.</span>`;
+        }
+    }
+</script>
+</body>
+</html>
